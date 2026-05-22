@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, MenuButtonWebApp, Message, WebAppInfo
@@ -51,21 +52,22 @@ async def cmd_start(message: Message):
 
 
 @router.message(Command("cal"))
-async def cmd_cal(message: Message):
+async def cmd_cal(message: Message, bot: Bot):
     if message.chat.type in ("group", "supergroup"):
-        # In groups, web_app buttons are not allowed — redirect to private chat
         group_id = abs(message.chat.id)
         kb = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(
-                text="📅 Открыть в личке с ботом",
+                text="📅 Открыть календарь",
                 url=f"https://t.me/Elcalendar_bot?start=c{group_id}",
             )
         ]])
-        await message.reply(
-            "Telegram не разрешает открывать мини-приложения прямо из групп.\n"
-            "Нажми кнопку — перейдёшь в личку, там откроется календарь этой группы:",
-            reply_markup=kb,
-        )
+        reply = await message.reply("👆", reply_markup=kb)
+        await asyncio.sleep(7)
+        for msg_id in (message.message_id, reply.message_id):
+            try:
+                await bot.delete_message(message.chat.id, msg_id)
+            except TelegramBadRequest:
+                pass
     else:
         await message.reply(
             "Нажми чтобы открыть:",
