@@ -5,7 +5,7 @@ from datetime import datetime
 from urllib.parse import parse_qsl, unquote
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import delete, select
@@ -44,15 +44,24 @@ def require_auth(x_init_data: str) -> dict:
     return data
 
 
-def require_chat(chat_id: int):
-    if settings.ALLOWED_CHAT_IDS and chat_id not in settings.ALLOWED_CHAT_IDS:
-        raise HTTPException(status_code=403, detail="Chat not allowed")
+async def require_member(request: Request, user_id: int):
+    if not settings.HOME_GROUP_ID:
+        return
+    try:
+        bot = request.app.state.bot
+        member = await bot.get_chat_member(settings.HOME_GROUP_ID, user_id)
+        if member.status not in ("member", "administrator", "creator"):
+            raise HTTPException(status_code=403, detail="Not a group member")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=403, detail="Could not verify membership")
 
 
 @app.get("/api/events")
-async def list_events(chat_id: int, past: bool = False, x_init_data: str = Header(...)):
-    require_auth(x_init_data)
-    require_chat(chat_id)
+async def list_events(request: Request, chat_id: int, past: bool = False, x_init_data: str = Header(...)):
+    data = require_auth(x_init_data)
+    await require_member(request, data["user"]["id"])
     rows = await get_upcoming_events(chat_id, past=past)
     return [
         {
@@ -89,9 +98,9 @@ class CreateEventRequest(BaseModel):
 
 
 @app.post("/api/events")
-async def api_create_event(req: CreateEventRequest, x_init_data: str = Header(...)):
-    require_auth(x_init_data)
-    require_chat(req.chat_id)
+async def api_create_event(request: Request, req: CreateEventRequest, x_init_data: str = Header(...)):
+    data = require_auth(x_init_data)
+    await require_member(request, data["user"]["id"])
     dt = datetime.fromisoformat(req.event_time)
     event = await create_event(
         chat_id=req.chat_id,
@@ -112,8 +121,9 @@ class UpdateEventRequest(BaseModel):
 
 
 @app.put("/api/events/{event_id}")
-async def api_update_event(event_id: int, req: UpdateEventRequest, x_init_data: str = Header(...)):
-    require_auth(x_init_data)
+async def api_update_event(request: Request, event_id: int, req: UpdateEventRequest, x_init_data: str = Header(...)):
+    data = require_auth(x_init_data)
+    await require_member(request, data["user"]["id"])
     dt = datetime.fromisoformat(req.event_time)
     event = await update_event(
         event_id=event_id,
@@ -126,8 +136,9 @@ async def api_update_event(event_id: int, req: UpdateEventRequest, x_init_data: 
 
 
 @app.delete("/api/events/{event_id}")
-async def api_delete_event(event_id: int, x_init_data: str = Header(...)):
-    require_auth(x_init_data)
+async def api_delete_event(request: Request, event_id: int, x_init_data: str = Header(...)):
+    data = require_auth(x_init_data)
+    await require_member(request, data["user"]["id"])
     async with Session() as s:
         await s.execute(delete(Event).where(Event.id == event_id))
         await s.commit()

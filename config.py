@@ -1,4 +1,3 @@
-from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -11,14 +10,7 @@ class Settings(BaseSettings):
     TIMEZONE: str = "Europe/Moscow"
     WEBAPP_URL: str = "https://elmagique.duckdns.org:7443/cal/"
     BOT_USERNAME: str = "Elcalendar_bot"
-    ALLOWED_CHAT_IDS: list[int] = []
-
-    @field_validator("ALLOWED_CHAT_IDS", mode="before")
-    @classmethod
-    def parse_chat_ids(cls, v):
-        if isinstance(v, str):
-            return [int(x.strip()) for x in v.split(",") if x.strip()]
-        return v
+    HOME_GROUP_ID: int = 0
 
     @property
     def DATABASE_URL(self) -> str:

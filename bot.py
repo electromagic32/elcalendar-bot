@@ -20,8 +20,14 @@ logging.basicConfig(level=logging.INFO)
 router = Router()
 
 
-def is_allowed(chat_id: int) -> bool:
-    return not settings.ALLOWED_CHAT_IDS or chat_id in settings.ALLOWED_CHAT_IDS
+async def is_member(bot: Bot, user_id: int) -> bool:
+    if not settings.HOME_GROUP_ID:
+        return True
+    try:
+        member = await bot.get_chat_member(settings.HOME_GROUP_ID, user_id)
+        return member.status in ("member", "administrator", "creator")
+    except Exception:
+        return False
 
 
 def webapp_button(chat_id: int) -> InlineKeyboardMarkup:
@@ -34,18 +40,16 @@ def webapp_button(chat_id: int) -> InlineKeyboardMarkup:
 
 
 @router.message(Command("start"))
-async def cmd_start(message: Message):
+async def cmd_start(message: Message, bot: Bot):
     args = message.text.split(maxsplit=1)
+    if not await is_member(bot, message.from_user.id):
+        return
     if len(args) > 1 and args[1].startswith("c"):
         group_id = -int(args[1][1:])
-        if not is_allowed(group_id):
-            return
         await message.reply(
             "Нажми чтобы открыть календарь группы:",
             reply_markup=webapp_button(group_id),
         )
-        return
-    if not is_allowed(message.chat.id):
         return
     await message.reply(
         "👋 Привет! Я бот-календарь.\n\n"
@@ -57,7 +61,7 @@ async def cmd_start(message: Message):
 
 @router.message(Command("cal"))
 async def cmd_cal(message: Message, bot: Bot):
-    if not is_allowed(message.chat.id):
+    if not await is_member(bot, message.from_user.id):
         return
     if message.chat.type in ("group", "supergroup"):
         group_id = abs(message.chat.id)
@@ -142,6 +146,7 @@ async def main():
 
     logging.info("Bot started")
 
+    api_app.state.bot = bot
     api_config = uvicorn.Config(api_app, host="0.0.0.0", port=8080, log_level="warning")
     api_server = uvicorn.Server(api_config)
 
