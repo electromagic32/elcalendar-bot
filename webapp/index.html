@@ -17,7 +17,21 @@ body {
 .view.active { display: block; }
 
 /* List */
-.list-header { padding: 20px 16px 12px; font-size: 20px; font-weight: 700; }
+.list-header { padding: 20px 16px 8px; font-size: 20px; font-weight: 700; }
+.seg-control {
+  display: flex; margin: 0 12px 8px; border-radius: 10px; overflow: hidden;
+  background: var(--tg-theme-secondary-bg-color, #f2f2f7);
+}
+.seg-btn {
+  flex: 1; padding: 8px 0; border: none; background: none; font-size: 14px;
+  color: var(--tg-theme-hint-color, #8e8e93); cursor: pointer; font-weight: 500;
+  transition: background 0.15s, color 0.15s;
+}
+.seg-btn.active {
+  background: var(--tg-theme-button-color, #2481cc);
+  color: var(--tg-theme-button-text-color, #fff);
+  border-radius: 8px;
+}
 .event-card {
   margin: 6px 12px;
   padding: 14px;
@@ -105,6 +119,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
 <div id="view-list" class="view active">
   <div class="list-header">📅 События</div>
+  <div class="seg-control">
+    <button class="seg-btn active" id="seg-upcoming" onclick="switchTab(false)">Предстоящие</button>
+    <button class="seg-btn" id="seg-past" onclick="switchTab(true)">Прошедшие</button>
+  </div>
   <div id="events-list"></div>
   <button class="fab" id="btn-new">+</button>
 </div>
@@ -151,6 +169,7 @@ const BASE = '/cal';
 let remIdSeq = 0;
 let editingId = null;
 let eventsCache = {};
+let showingPast = false;
 
 // ── API ──────────────────────────────────────────────
 async function apiFetch(path, opts = {}) {
@@ -185,14 +204,23 @@ function escHtml(s) {
 }
 
 // ── Events list ──────────────────────────────────────
+function switchTab(past) {
+  showingPast = past;
+  document.getElementById('seg-upcoming').classList.toggle('active', !past);
+  document.getElementById('seg-past').classList.toggle('active', past);
+  document.getElementById('btn-new').style.display = past ? 'none' : 'flex';
+  loadEvents();
+}
+
 async function loadEvents() {
   const el = document.getElementById('events-list');
   el.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div>Загрузка...</div>';
   try {
-    const events = await apiFetch(`/api/events?chat_id=${chatId}`);
+    const events = await apiFetch(`/api/events?chat_id=${chatId}&past=${showingPast}`);
     eventsCache = Object.fromEntries(events.map(e => [e.id, e]));
     if (!events.length) {
-      el.innerHTML = '<div class="empty"><div class="empty-icon">🗓</div>Нет предстоящих событий</div>';
+      const msg = showingPast ? 'Нет прошедших событий' : 'Нет предстоящих событий';
+      el.innerHTML = `<div class="empty"><div class="empty-icon">🗓</div>${msg}</div>`;
       return;
     }
     el.innerHTML = events.map(e => {
@@ -373,6 +401,7 @@ function goBack() {
   tg.MainButton.offClick(submitEvent);
   tg.BackButton.hide();
   loadEvents();
+  editingId = null;
 }
 
 function show(id) {
