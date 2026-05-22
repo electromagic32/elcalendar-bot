@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     TIMEZONE: str = "Europe/Moscow"
     WEBAPP_URL: str = "https://elmagique.duckdns.org:7443/cal/"
     BOT_USERNAME: str = "Elcalendar_bot"
+    HOME_GROUP_ID: int = 0
 
     @property
     def DATABASE_URL(self) -> str:
