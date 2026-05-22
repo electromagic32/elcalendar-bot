@@ -102,14 +102,24 @@ async def update_event(
         return event
 
 
-async def get_upcoming_events(chat_id: int) -> list[tuple[Event, list[Reminder]]]:
+async def get_upcoming_events(chat_id: int, past: bool = False) -> list[tuple[Event, list[Reminder]]]:
     async with Session() as s:
-        result = await s.execute(
-            select(Event)
-            .where(Event.chat_id == chat_id, Event.event_time > datetime.utcnow())
-            .order_by(Event.event_time)
-            .limit(10)
-        )
+        now = datetime.utcnow()
+        if past:
+            query = (
+                select(Event)
+                .where(Event.chat_id == chat_id, Event.event_time <= now)
+                .order_by(Event.event_time.desc())
+                .limit(30)
+            )
+        else:
+            query = (
+                select(Event)
+                .where(Event.chat_id == chat_id, Event.event_time > now)
+                .order_by(Event.event_time)
+                .limit(10)
+            )
+        result = await s.execute(query)
         events = result.scalars().all()
         out = []
         for event in events:

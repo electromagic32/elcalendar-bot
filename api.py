@@ -45,9 +45,9 @@ def require_auth(x_init_data: str) -> dict:
 
 
 @app.get("/api/events")
-async def list_events(chat_id: int, x_init_data: str = Header(...)):
+async def list_events(chat_id: int, past: bool = False, x_init_data: str = Header(...)):
     require_auth(x_init_data)
-    rows = await get_upcoming_events(chat_id)
+    rows = await get_upcoming_events(chat_id, past=past)
     return [
         {
             "id": event.id,
