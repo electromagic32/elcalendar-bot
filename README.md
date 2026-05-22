@@ -1,14 +1,15 @@
 # Elcalendar Bot
 
-Telegram-бот календарь с Mini App. Позволяет создавать события в группе и получать напоминания.
+Telegram-бот календарь с Mini App. Позволяет создавать и редактировать события в группе и получать напоминания.
 
 ## Возможности
 
-- Создание событий через Mini App (кнопки, date picker)
-- Создание событий через текстовый диалог (`/newevent`)
+- Создание и редактирование событий через Mini App
+- Просмотр предстоящих и прошедших событий
 - Несколько напоминаний на одно событие
 - Повторные напоминания с настраиваемым интервалом
 - Удаление событий из Mini App
+- В группах: команда `/cal` автоматически удаляется через 7 секунд (бот должен быть администратором)
 
 ## Стек
 
@@ -21,7 +22,7 @@ Telegram-бот календарь с Mini App. Позволяет создав�
 
 ### 1. Создай бота
 
-Открой [@BotFather](https://t.me/BotFather), выполни `/newbot`, скопируй токен.
+Открой [@BotFather](https://t.me/BotFather), выполни `/newbot`, скопируй токен и username.
 
 ### 2. Настрой окружение
 
@@ -32,8 +33,10 @@ nano .env
 
 ```env
 BOT_TOKEN=1234567890:AAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+BOT_USERNAME=MyCalendarBot
 DB_PASSWORD=придумай_пароль
 TIMEZONE=Europe/Moscow
+WEBAPP_URL=https://<твой-домен>/cal/
 ```
 
 ### 3. Запусти
@@ -48,10 +51,7 @@ docker compose up -d --build
 
 | Команда | Описание |
 |---------|----------|
-| `/cal` | Открыть Mini App (в группах — ссылка в личку) |
-| `/newevent` | Создать событие через диалог |
-| `/events` | Список предстоящих событий |
-| `/cancel` | Отменить текущий диалог |
+| `/cal` | Открыть Mini App (в группах — ссылка в личку, сообщения удаляются через 7 сек) |
 
 ## Mini App
 
@@ -59,20 +59,50 @@ docker compose up -d --build
 
 Требует HTTPS. Для раздачи используется Caddy (конфиг в `../vaultwarden/Caddyfile`).
 
-**Структура напоминаний:**
-- Одно событие может иметь несколько независимых напоминаний
-- Каждое напоминание можно повторить N раз с заданным интервалом
+**Возможности:**
+- Создание и редактирование событий (тап на карточку)
+- Переключение между предстоящими и прошедшими событиями
+- Несколько напоминаний на событие, каждое с повтором и интервалом
+
+## Staging-окружение
+
+Для тестирования без влияния на production используется отдельный стек.
+
+```bash
+# Создай .env.dev с токеном тестового бота
+cp .env.example .env.dev
+nano .env.dev  # BOT_USERNAME, WEBAPP_URL=.../cal-dev/, DB_NAME=calbot_dev, DB_HOST=db-dev
+
+docker compose -f docker-compose.dev.yml --env-file .env.dev up -d --build
+```
+
+Staging поднимается на порту `8081`, Caddy роутит `/cal-dev/*` → `8081`.
+
+При пуше в ветку `dev` GitHub Actions автоматически деплоит staging.
+
+## CI/CD
+
+| Ветка | Действие |
+|-------|----------|
+| `dev` | Деплой на staging (`/cal-dev/`) |
+| `main` | Деплой на production (`/cal/`) |
+
+Workflow-файлы: `.github/workflows/deploy.yml`, `.github/workflows/deploy-dev.yml`.
 
 ## Структура проекта
 
 ```
-├── bot.py          # Точка входа, хендлеры, планировщик
-├── api.py          # FastAPI — REST API для Mini App
-├── db.py           # Модели SQLAlchemy, CRUD
-├── config.py       # Настройки из .env
-├── utils.py        # Парсинг дат и времени
+├── bot.py                        # Хендлеры, планировщик напоминаний
+├── api.py                        # FastAPI — REST API для Mini App
+├── db.py                         # Модели SQLAlchemy, CRUD
+├── config.py                     # Настройки из .env
+├── utils.py                      # Форматирование дат
 ├── webapp/
-│   └── index.html  # Telegram Mini App (vanilla JS)
+│   └── index.html                # Telegram Mini App (vanilla JS)
+├── docker-compose.yml            # Production
+├── docker-compose.dev.yml        # Staging
 ├── Dockerfile
-└── docker-compose.yml
+└── .github/workflows/
+    ├── deploy.yml                # CD → main
+    └── deploy-dev.yml            # CD → dev
 ```
