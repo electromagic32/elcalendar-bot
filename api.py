@@ -140,8 +140,27 @@ async def api_delete_event(request: Request, event_id: int, x_init_data: str = H
     data = require_auth(x_init_data)
     await require_member(request, data["user"]["id"])
     async with Session() as s:
-        await s.execute(delete(Event).where(Event.id == event_id))
-        await s.commit()
+        result = await s.execute(select(Event).where(Event.id == event_id))
+        event = result.scalar_one_or_none()
+        if event:
+            user = data["user"]
+            name = user.get("first_name", "")
+            if user.get("last_name"):
+                name += f" {user['last_name']}"
+            dt = event.event_time.strftime("%d.%m.%Y %H:%M")
+            try:
+                await request.app.state.bot.send_message(
+                    event.chat_id,
+                    f"🗑 <b>Событие удалено</b>\n\n"
+                    f"📌 {event.title}\n"
+                    f"🕐 {dt}\n"
+                    f"<i>Удалил: {name}</i>",
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
+            await s.execute(delete(Event).where(Event.id == event_id))
+            await s.commit()
     return {"ok": True}
 
 
