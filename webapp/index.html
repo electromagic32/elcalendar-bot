@@ -147,6 +147,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <input type="text" id="f-location" placeholder="Необязательно" style="width:100%">
     </div>
 
+    <div class="form-group">
+      <label class="form-label">Описание</label>
+      <textarea id="f-description" placeholder="Необязательно" style="width:100%;min-height:72px;resize:vertical"></textarea>
+    </div>
+
     <div class="section-title">Напоминания</div>
     <div id="reminders-list"></div>
     <button class="add-rem-btn" id="btn-add-rem">+ Добавить напоминание</button>
@@ -159,6 +164,7 @@ tg.ready();
 tg.expand();
 
 const initData = tg.initData;
+const currentUserId = tg.initDataUnsafe?.user?.id;
 const urlParams = new URLSearchParams(window.location.search);
 const chatId = urlParams.get('cid')
   ? parseInt(urlParams.get('cid'))
@@ -231,13 +237,15 @@ async function loadEvents() {
           : '';
         return `⏰ ${base}${rep}`;
       }).join('<br>');
+      const canDel = !e.created_by || e.created_by === currentUserId;
       return `
         <div class="event-card">
-          <button class="del-btn" onclick="event.stopPropagation();delEvent(${e.id})">🗑</button>
+          ${canDel ? `<button class="del-btn" onclick="event.stopPropagation();delEvent(${e.id})">🗑</button>` : ''}
           <div onclick="editEvent(${e.id})" style="cursor:pointer">
-            <div class="event-title">${escHtml(e.title)}</div>
+            <div class="event-title" style="${canDel ? '' : 'padding-right:0'}">${escHtml(e.title)}</div>
             <div class="event-meta">🕐 ${fmtDate(e.event_time)}</div>
             ${e.location ? `<div class="event-meta">📍 ${escHtml(e.location)}</div>` : ''}
+            ${e.description ? `<div class="event-meta" style="margin-top:4px">📝 ${escHtml(e.description)}</div>` : ''}
             ${remHtml ? `<div class="event-meta" style="margin-top:6px">${remHtml}</div>` : ''}
           </div>
         </div>`;
@@ -287,6 +295,7 @@ window.editEvent = function(id) {
 
   document.getElementById('f-title').value = e.title;
   document.getElementById('f-location').value = e.location || '';
+  document.getElementById('f-description').value = e.description || '';
   document.getElementById('f-datetime').value = utcIsoToLocalInput(e.event_time);
   document.querySelector('.form-title').textContent = 'Редактировать событие';
 
@@ -377,6 +386,7 @@ document.getElementById('btn-new').onclick = () => {
 
   document.getElementById('f-title').value = '';
   document.getElementById('f-location').value = '';
+  document.getElementById('f-description').value = '';
   document.querySelector('.form-title').textContent = 'Новое событие';
   const d = new Date();
   d.setDate(d.getDate() + 1);
@@ -414,6 +424,7 @@ async function submitEvent() {
   const title = document.getElementById('f-title').value.trim();
   const dtLocal = document.getElementById('f-datetime').value;
   const location = document.getElementById('f-location').value.trim() || null;
+  const description = document.getElementById('f-description').value.trim() || null;
   const reminders = collectReminders();
 
   if (!title)    { tg.showAlert('Введите название события'); return; }
@@ -427,12 +438,12 @@ async function submitEvent() {
     if (editingId) {
       await apiFetch(`/api/events/${editingId}`, {
         method: 'PUT',
-        body: JSON.stringify({ title, event_time: utcStr, location, reminders }),
+        body: JSON.stringify({ title, event_time: utcStr, location, description, reminders }),
       });
     } else {
       await apiFetch('/api/events', {
         method: 'POST',
-        body: JSON.stringify({ chat_id: chatId, created_by: userId, title, event_time: utcStr, location, reminders }),
+        body: JSON.stringify({ chat_id: chatId, created_by: userId, title, event_time: utcStr, location, description, reminders }),
       });
     }
     tg.MainButton.hideProgress();
