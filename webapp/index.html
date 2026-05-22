@@ -165,7 +165,7 @@ const chatId = urlParams.get('cid')
   : (tg.initDataUnsafe?.chat?.id || tg.initDataUnsafe?.user?.id);
 const userId = tg.initDataUnsafe?.user?.id;
 
-const BASE = '/cal';
+const BASE = '/' + (window.location.pathname.split('/').filter(Boolean)[0] || 'cal');
 let remIdSeq = 0;
 let editingId = null;
 let eventsCache = {};
