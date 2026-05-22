@@ -21,13 +21,16 @@ router = Router()
 
 
 async def is_member(bot: Bot, user_id: int) -> bool:
-    if not settings.HOME_GROUP_ID:
+    if not settings.HOME_GROUP_IDS:
         return True
-    try:
-        member = await bot.get_chat_member(settings.HOME_GROUP_ID, user_id)
-        return member.status in ("member", "administrator", "creator")
-    except Exception:
-        return False
+    for group_id in settings.HOME_GROUP_IDS:
+        try:
+            member = await bot.get_chat_member(group_id, user_id)
+            if member.status in ("member", "administrator", "creator"):
+                return True
+        except Exception:
+            continue
+    return False
 
 
 def webapp_button(chat_id: int) -> InlineKeyboardMarkup:

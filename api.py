@@ -45,17 +45,31 @@ def require_auth(x_init_data: str) -> dict:
 
 
 async def require_member(request: Request, user_id: int):
-    if not settings.HOME_GROUP_ID:
+    if not settings.HOME_GROUP_IDS:
         return
-    try:
-        bot = request.app.state.bot
-        member = await bot.get_chat_member(settings.HOME_GROUP_ID, user_id)
-        if member.status not in ("member", "administrator", "creator"):
-            raise HTTPException(status_code=403, detail="Not a group member")
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(status_code=403, detail="Could not verify membership")
+    bot = request.app.state.bot
+    for group_id in settings.HOME_GROUP_IDS:
+        try:
+            member = await bot.get_chat_member(group_id, user_id)
+            if member.status in ("member", "administrator", "creator"):
+                return
+        except Exception:
+            continue
+    raise HTTPException(status_code=403, detail="Not a group member")
+
+
+async def can_delete(request: Request, event: Event, user_id: int):
+    if event.created_by == user_id:
+        return
+    bot = request.app.state.bot
+    for group_id in settings.HOME_GROUP_IDS:
+        try:
+            member = await bot.get_chat_member(group_id, user_id)
+            if member.status in ("administrator", "creator"):
+                return
+        except Exception:
+            continue
+    raise HTTPException(status_code=403, detail="Only the event creator or group admin can delete")
 
 
 @app.get("/api/events")
@@ -69,6 +83,8 @@ async def list_events(request: Request, chat_id: int, past: bool = False, x_init
             "title": event.title,
             "event_time": event.event_time.isoformat(),
             "location": event.location,
+            "description": event.description,
+            "created_by": event.created_by,
             "reminders": [
                 {
                     "remind_before": r.remind_before,
@@ -92,8 +108,9 @@ class CreateEventRequest(BaseModel):
     chat_id: int
     created_by: int
     title: str
-    event_time: str  # UTC ISO: YYYY-MM-DDTHH:MM
+    event_time: str
     location: str | None = None
+    description: str | None = None
     reminders: list[ReminderIn]
 
 
@@ -108,6 +125,7 @@ async def api_create_event(request: Request, req: CreateEventRequest, x_init_dat
         title=req.title,
         event_time=dt,
         location=req.location,
+        description=req.description,
         reminders=[r.model_dump() for r in req.reminders],
     )
     return {"id": event.id, "title": event.title}
@@ -117,6 +135,7 @@ class UpdateEventRequest(BaseModel):
     title: str
     event_time: str
     location: str | None = None
+    description: str | None = None
     reminders: list[ReminderIn]
 
 
@@ -130,6 +149,7 @@ async def api_update_event(request: Request, event_id: int, req: UpdateEventRequ
         title=req.title,
         event_time=dt,
         location=req.location,
+        description=req.description,
         reminders=[r.model_dump() for r in req.reminders],
     )
     return {"id": event.id, "title": event.title}
@@ -143,6 +163,7 @@ async def api_delete_event(request: Request, event_id: int, x_init_data: str = H
         result = await s.execute(select(Event).where(Event.id == event_id))
         event = result.scalar_one_or_none()
         if event:
+            await can_delete(request, event, data["user"]["id"])
             user = data["user"]
             name = user.get("first_name", "")
             if user.get("last_name"):

@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, delete, select
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, Text, delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -23,6 +23,7 @@ class Event(Base):
     title: Mapped[str] = mapped_column(String(255))
     event_time: Mapped[datetime] = mapped_column(DateTime)
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     remind_before: Mapped[int] = mapped_column(Integer, default=0)   # legacy
     reminded: Mapped[bool] = mapped_column(Boolean, default=False)    # legacy
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -42,6 +43,7 @@ class Reminder(Base):
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(text("ALTER TABLE events ADD COLUMN IF NOT EXISTS description TEXT"))
 
 
 async def create_event(
@@ -50,6 +52,7 @@ async def create_event(
     title: str,
     event_time: datetime,
     location: str | None,
+    description: str | None,
     reminders: list[dict],
 ) -> Event:
     async with Session() as s:
@@ -59,6 +62,7 @@ async def create_event(
             title=title,
             event_time=event_time,
             location=location,
+            description=description,
             remind_before=0,
             reminded=False,
         )
@@ -81,6 +85,7 @@ async def update_event(
     title: str,
     event_time: datetime,
     location: str | None,
+    description: str | None,
     reminders: list[dict],
 ) -> Event:
     async with Session() as s:
@@ -89,6 +94,7 @@ async def update_event(
         event.title = title
         event.event_time = event_time
         event.location = location
+        event.description = description
         await s.execute(delete(Reminder).where(Reminder.event_id == event_id))
         for r in reminders:
             s.add(Reminder(
@@ -136,7 +142,7 @@ async def get_due_reminders() -> list[tuple[Reminder, Event]]:
             .join(Event, Reminder.event_id == Event.id)
             .where(
                 Reminder.send_count < Reminder.repeat_count,
-                Event.event_time > now,
+                Event.event_time > now - timedelta(hours=1),
             )
         )
         due = []
