@@ -44,9 +44,15 @@ def require_auth(x_init_data: str) -> dict:
     return data
 
 
+def require_chat(chat_id: int):
+    if settings.ALLOWED_CHAT_IDS and chat_id not in settings.ALLOWED_CHAT_IDS:
+        raise HTTPException(status_code=403, detail="Chat not allowed")
+
+
 @app.get("/api/events")
 async def list_events(chat_id: int, past: bool = False, x_init_data: str = Header(...)):
     require_auth(x_init_data)
+    require_chat(chat_id)
     rows = await get_upcoming_events(chat_id, past=past)
     return [
         {
@@ -85,6 +91,7 @@ class CreateEventRequest(BaseModel):
 @app.post("/api/events")
 async def api_create_event(req: CreateEventRequest, x_init_data: str = Header(...)):
     require_auth(x_init_data)
+    require_chat(req.chat_id)
     dt = datetime.fromisoformat(req.event_time)
     event = await create_event(
         chat_id=req.chat_id,

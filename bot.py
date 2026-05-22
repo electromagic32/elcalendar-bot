@@ -20,6 +20,10 @@ logging.basicConfig(level=logging.INFO)
 router = Router()
 
 
+def is_allowed(chat_id: int) -> bool:
+    return not settings.ALLOWED_CHAT_IDS or chat_id in settings.ALLOWED_CHAT_IDS
+
+
 def webapp_button(chat_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(
@@ -32,13 +36,16 @@ def webapp_button(chat_id: int) -> InlineKeyboardMarkup:
 @router.message(Command("start"))
 async def cmd_start(message: Message):
     args = message.text.split(maxsplit=1)
-    # Deep link from group: /start c<abs_group_id>
     if len(args) > 1 and args[1].startswith("c"):
         group_id = -int(args[1][1:])
+        if not is_allowed(group_id):
+            return
         await message.reply(
             "Нажми чтобы открыть календарь группы:",
             reply_markup=webapp_button(group_id),
         )
+        return
+    if not is_allowed(message.chat.id):
         return
     await message.reply(
         "👋 Привет! Я бот-календарь.\n\n"
@@ -50,6 +57,8 @@ async def cmd_start(message: Message):
 
 @router.message(Command("cal"))
 async def cmd_cal(message: Message, bot: Bot):
+    if not is_allowed(message.chat.id):
+        return
     if message.chat.type in ("group", "supergroup"):
         group_id = abs(message.chat.id)
         kb = InlineKeyboardMarkup(inline_keyboard=[[
