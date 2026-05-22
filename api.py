@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import delete, select
 
 from config import settings
-from db import Event, Reminder, Session, create_event, get_upcoming_events
+from db import Event, Reminder, Session, create_event, get_upcoming_events, update_event
 
 app = FastAPI()
 
@@ -89,6 +89,27 @@ async def api_create_event(req: CreateEventRequest, x_init_data: str = Header(..
     event = await create_event(
         chat_id=req.chat_id,
         created_by=req.created_by,
+        title=req.title,
+        event_time=dt,
+        location=req.location,
+        reminders=[r.model_dump() for r in req.reminders],
+    )
+    return {"id": event.id, "title": event.title}
+
+
+class UpdateEventRequest(BaseModel):
+    title: str
+    event_time: str
+    location: str | None = None
+    reminders: list[ReminderIn]
+
+
+@app.put("/api/events/{event_id}")
+async def api_update_event(event_id: int, req: UpdateEventRequest, x_init_data: str = Header(...)):
+    require_auth(x_init_data)
+    dt = datetime.fromisoformat(req.event_time)
+    event = await update_event(
+        event_id=event_id,
         title=req.title,
         event_time=dt,
         location=req.location,
