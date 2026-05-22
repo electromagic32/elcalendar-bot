@@ -165,6 +165,13 @@ async def get_due_reminders() -> list[tuple[Reminder, Event]]:
         return due
 
 
+async def cleanup_old_events(ttl_minutes: int):
+    async with Session() as s:
+        cutoff = datetime.utcnow() - timedelta(minutes=ttl_minutes)
+        await s.execute(delete(Event).where(Event.created_at <= cutoff))
+        await s.commit()
+
+
 async def increment_send_count(reminder_id: int):
     async with Session() as s:
         result = await s.execute(select(Reminder).where(Reminder.id == reminder_id))

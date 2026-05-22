@@ -11,7 +11,7 @@ import uvicorn
 from api import app as api_app
 
 from config import settings
-from db import get_due_reminders, increment_send_count, init_db
+from db import cleanup_old_events, get_due_reminders, increment_send_count, init_db
 from datetime import datetime
 
 from utils import fmt_dt
@@ -145,6 +145,8 @@ async def main():
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(send_reminders, "interval", seconds=30, args=[bot])
+    if settings.EVENT_TTL_MINUTES > 0:
+        scheduler.add_job(cleanup_old_events, "interval", minutes=5, args=[settings.EVENT_TTL_MINUTES])
     scheduler.start()
 
     logging.info("Bot started")

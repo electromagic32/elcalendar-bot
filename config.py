@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     WEBAPP_URL: str = "https://elmagique.duckdns.org:7443/cal/"
     BOT_USERNAME: str = "Elcalendar_bot"
     HOME_GROUP_IDS: list[int] = []
+    EVENT_TTL_MINUTES: int = 0
 
     @field_validator("HOME_GROUP_IDS", mode="before")
     @classmethod
