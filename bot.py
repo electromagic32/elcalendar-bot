@@ -105,10 +105,19 @@ async def send_reminders(bot: Bot):
 async def main():
     await init_db()
 
+    from aiogram.types import BotCommandScopeAllGroupChats, BotCommandScopeAllPrivateChats
+
     bot = Bot(token=settings.BOT_TOKEN)
-    await bot.set_my_commands([
-        BotCommand(command="cal", description="Открыть календарь"),
-    ])
+    await bot.delete_my_commands(scope=BotCommandScopeAllPrivateChats())
+    await bot.delete_my_commands(scope=BotCommandScopeAllGroupChats())
+    await bot.set_my_commands(
+        [BotCommand(command="cal", description="Открыть календарь")],
+        scope=BotCommandScopeAllPrivateChats(),
+    )
+    await bot.set_my_commands(
+        [BotCommand(command="cal", description="Открыть календарь")],
+        scope=BotCommandScopeAllGroupChats(),
+    )
     await bot.set_chat_menu_button(
         menu_button=MenuButtonWebApp(
             text="📅 Календарь",
