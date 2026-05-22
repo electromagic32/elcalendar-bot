@@ -1,0 +1,24 @@
+name: Deploy Dev
+
+on:
+  push:
+    branches: [dev]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS (staging)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /home/electromagic/tgbot
+            git fetch origin
+            git checkout dev
+            git pull origin dev
+            printf 'BOT_TOKEN=%s\nDB_PASSWORD=tgbot_dev_pg\nDB_NAME=calbot_dev\nTIMEZONE=Europe/Moscow\nBOT_USERNAME=%s\nWEBAPP_URL=https://elmagique.duckdns.org:7443/cal-dev/\n' \
+              '${{ secrets.STAGING_BOT_TOKEN }}' '${{ secrets.STAGING_BOT_USERNAME }}' > .env.dev
+            docker compose -f docker-compose.dev.yml up -d --build

@@ -16,5 +16,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /home/electromagic/tgbot
-            git pull
+            git fetch origin
+            git checkout main
+            git pull origin main
             docker compose up -d --build

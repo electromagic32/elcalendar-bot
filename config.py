@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     DB_PASSWORD: str = "bot"
     DB_NAME: str = "calbot"
     TIMEZONE: str = "Europe/Moscow"
+    WEBAPP_URL: str = "https://elmagique.duckdns.org:7443/cal/"
+    BOT_USERNAME: str = "Elcalendar_bot"
 
     @property
     def DATABASE_URL(self) -> str:

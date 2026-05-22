@@ -19,14 +19,11 @@ logging.basicConfig(level=logging.INFO)
 router = Router()
 
 
-WEBAPP_URL = "https://elmagique.duckdns.org:7443/cal/"
-
-
 def webapp_button(chat_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(
             text="📅 Открыть календарь",
-            web_app=WebAppInfo(url=f"{WEBAPP_URL}?cid={chat_id}"),
+            web_app=WebAppInfo(url=f"{settings.WEBAPP_URL}?cid={chat_id}"),
         )
     ]])
 
@@ -58,7 +55,7 @@ async def cmd_cal(message: Message):
         kb = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(
                 text="📅 Открыть в личке с ботом",
-                url=f"https://t.me/Elcalendar_bot?start=c{group_id}",
+                url=f"https://t.me/{settings.BOT_USERNAME}?start=c{group_id}",
             )
         ]])
         await message.reply(
@@ -121,7 +118,7 @@ async def main():
     await bot.set_chat_menu_button(
         menu_button=MenuButtonWebApp(
             text="📅 Календарь",
-            web_app=WebAppInfo(url=f"https://elmagique.duckdns.org:7443/cal/"),
+            web_app=WebAppInfo(url=settings.WEBAPP_URL),
         )
     )
 
