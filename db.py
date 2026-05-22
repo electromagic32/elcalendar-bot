@@ -25,6 +25,7 @@ class Event(Base):
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    updated_by_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     remind_before: Mapped[int] = mapped_column(Integer, default=0)   # legacy
     reminded: Mapped[bool] = mapped_column(Boolean, default=False)    # legacy
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -46,6 +47,7 @@ async def init_db():
         await conn.run_sync(Base.metadata.create_all)
         await conn.execute(text("ALTER TABLE events ADD COLUMN IF NOT EXISTS description TEXT"))
         await conn.execute(text("ALTER TABLE events ADD COLUMN IF NOT EXISTS created_by_name VARCHAR(128)"))
+        await conn.execute(text("ALTER TABLE events ADD COLUMN IF NOT EXISTS updated_by_name VARCHAR(128)"))
 
 
 async def create_event(
@@ -90,6 +92,7 @@ async def update_event(
     event_time: datetime,
     location: str | None,
     description: str | None,
+    updated_by_name: str | None,
     reminders: list[dict],
 ) -> Event:
     async with Session() as s:
@@ -99,6 +102,7 @@ async def update_event(
         event.event_time = event_time
         event.location = location
         event.description = description
+        event.updated_by_name = updated_by_name
         await s.execute(delete(Reminder).where(Reminder.event_id == event_id))
         for r in reminders:
             s.add(Reminder(

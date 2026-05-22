@@ -252,6 +252,7 @@ async function loadEvents() {
             ${e.location ? `<div class="event-meta">📍 ${escHtml(e.location)}</div>` : ''}
             ${e.description ? `<div class="event-meta" style="margin-top:4px">📝 ${escHtml(e.description)}</div>` : ''}
             ${e.created_by_name ? `<div class="event-meta" style="margin-top:4px">👤 ${escHtml(e.created_by_name)}</div>` : ''}
+            ${e.updated_by_name ? `<div class="event-meta">✏️ ${escHtml(e.updated_by_name)}</div>` : ''}
             ${remHtml ? `<div class="event-meta" style="margin-top:6px">${remHtml}</div>` : ''}
           </div>
         </div>`;

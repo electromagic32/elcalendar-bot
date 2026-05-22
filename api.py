@@ -86,6 +86,7 @@ async def list_events(request: Request, chat_id: int, past: bool = False, x_init
             "description": event.description,
             "created_by": event.created_by,
             "created_by_name": event.created_by_name,
+            "updated_by_name": event.updated_by_name,
             "reminders": [
                 {
                     "remind_before": r.remind_before,
@@ -146,6 +147,10 @@ class UpdateEventRequest(BaseModel):
 async def api_update_event(request: Request, event_id: int, req: UpdateEventRequest, x_init_data: str = Header(...)):
     data = require_auth(x_init_data)
     await require_member(request, data["user"]["id"])
+    user = data["user"]
+    updated_by_name = user.get("first_name", "")
+    if user.get("last_name"):
+        updated_by_name += f" {user['last_name']}"
     dt = datetime.fromisoformat(req.event_time)
     event = await update_event(
         event_id=event_id,
@@ -153,6 +158,7 @@ async def api_update_event(request: Request, event_id: int, req: UpdateEventRequ
         event_time=dt,
         location=req.location,
         description=req.description,
+        updated_by_name=updated_by_name or None,
         reminders=[r.model_dump() for r in req.reminders],
     )
     return {"id": event.id, "title": event.title}
