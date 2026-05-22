@@ -172,6 +172,11 @@ const chatId = urlParams.get('cid')
 const userId = tg.initDataUnsafe?.user?.id;
 
 const BASE = '/' + (window.location.pathname.split('/').filter(Boolean)[0] || 'cal');
+const currentUserName = (() => {
+  const u = tg.initDataUnsafe?.user;
+  if (!u) return null;
+  return [u.first_name, u.last_name].filter(Boolean).join(' ');
+})();
 let remIdSeq = 0;
 let editingId = null;
 let eventsCache = {};
@@ -246,6 +251,7 @@ async function loadEvents() {
             <div class="event-meta">🕐 ${fmtDate(e.event_time)}</div>
             ${e.location ? `<div class="event-meta">📍 ${escHtml(e.location)}</div>` : ''}
             ${e.description ? `<div class="event-meta" style="margin-top:4px">📝 ${escHtml(e.description)}</div>` : ''}
+            ${e.created_by_name ? `<div class="event-meta" style="margin-top:4px">👤 ${escHtml(e.created_by_name)}</div>` : ''}
             ${remHtml ? `<div class="event-meta" style="margin-top:6px">${remHtml}</div>` : ''}
           </div>
         </div>`;
@@ -443,7 +449,7 @@ async function submitEvent() {
     } else {
       await apiFetch('/api/events', {
         method: 'POST',
-        body: JSON.stringify({ chat_id: chatId, created_by: userId, title, event_time: utcStr, location, description, reminders }),
+        body: JSON.stringify({ chat_id: chatId, created_by: userId, created_by_name: currentUserName, title, event_time: utcStr, location, description, reminders }),
       });
     }
     tg.MainButton.hideProgress();

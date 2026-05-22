@@ -85,6 +85,7 @@ async def list_events(request: Request, chat_id: int, past: bool = False, x_init
             "location": event.location,
             "description": event.description,
             "created_by": event.created_by,
+            "created_by_name": event.created_by_name,
             "reminders": [
                 {
                     "remind_before": r.remind_before,
@@ -107,6 +108,7 @@ class ReminderIn(BaseModel):
 class CreateEventRequest(BaseModel):
     chat_id: int
     created_by: int
+    created_by_name: str | None = None
     title: str
     event_time: str
     location: str | None = None
@@ -122,6 +124,7 @@ async def api_create_event(request: Request, req: CreateEventRequest, x_init_dat
     event = await create_event(
         chat_id=req.chat_id,
         created_by=req.created_by,
+        created_by_name=req.created_by_name,
         title=req.title,
         event_time=dt,
         location=req.location,

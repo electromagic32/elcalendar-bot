@@ -24,6 +24,7 @@ class Event(Base):
     event_time: Mapped[datetime] = mapped_column(DateTime)
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     remind_before: Mapped[int] = mapped_column(Integer, default=0)   # legacy
     reminded: Mapped[bool] = mapped_column(Boolean, default=False)    # legacy
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -44,11 +45,13 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.execute(text("ALTER TABLE events ADD COLUMN IF NOT EXISTS description TEXT"))
+        await conn.execute(text("ALTER TABLE events ADD COLUMN IF NOT EXISTS created_by_name VARCHAR(128)"))
 
 
 async def create_event(
     chat_id: int,
     created_by: int,
+    created_by_name: str | None,
     title: str,
     event_time: datetime,
     location: str | None,
@@ -59,6 +62,7 @@ async def create_event(
         event = Event(
             chat_id=chat_id,
             created_by=created_by,
+            created_by_name=created_by_name,
             title=title,
             event_time=event_time,
             location=location,
