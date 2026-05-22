@@ -149,6 +149,8 @@ const userId = tg.initDataUnsafe?.user?.id;
 
 const BASE = '/cal';
 let remIdSeq = 0;
+let editingId = null;
+let eventsCache = {};
 
 // ── API ──────────────────────────────────────────────
 async function apiFetch(path, opts = {}) {
@@ -188,6 +190,7 @@ async function loadEvents() {
   el.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div>Загрузка...</div>';
   try {
     const events = await apiFetch(`/api/events?chat_id=${chatId}`);
+    eventsCache = Object.fromEntries(events.map(e => [e.id, e]));
     if (!events.length) {
       el.innerHTML = '<div class="empty"><div class="empty-icon">🗓</div>Нет предстоящих событий</div>';
       return;
@@ -202,11 +205,13 @@ async function loadEvents() {
       }).join('<br>');
       return `
         <div class="event-card">
-          <button class="del-btn" onclick="delEvent(${e.id})">🗑</button>
-          <div class="event-title">${escHtml(e.title)}</div>
-          <div class="event-meta">🕐 ${fmtDate(e.event_time)}</div>
-          ${e.location ? `<div class="event-meta">📍 ${escHtml(e.location)}</div>` : ''}
-          ${remHtml ? `<div class="event-meta" style="margin-top:6px">${remHtml}</div>` : ''}
+          <button class="del-btn" onclick="event.stopPropagation();delEvent(${e.id})">🗑</button>
+          <div onclick="editEvent(${e.id})" style="cursor:pointer">
+            <div class="event-title">${escHtml(e.title)}</div>
+            <div class="event-meta">🕐 ${fmtDate(e.event_time)}</div>
+            ${e.location ? `<div class="event-meta">📍 ${escHtml(e.location)}</div>` : ''}
+            ${remHtml ? `<div class="event-meta" style="margin-top:6px">${remHtml}</div>` : ''}
+          </div>
         </div>`;
     }).join('');
   } catch {
@@ -220,6 +225,47 @@ window.delEvent = function(id) {
     try { await apiFetch(`/api/events/${id}`, { method: 'DELETE' }); loadEvents(); }
     catch { tg.showAlert('Не удалось удалить'); }
   });
+};
+
+function minsToValUnit(m, allowDays = true) {
+  if (allowDays && m % 1440 === 0) return { val: m / 1440, unit: 1440 };
+  if (m % 60 === 0) return { val: m / 60, unit: 60 };
+  return { val: m, unit: 1 };
+}
+
+function utcIsoToLocalInput(isoUtc) {
+  const d = new Date(isoUtc + 'Z');
+  const loc = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return loc.toISOString().slice(0, 16);
+}
+
+window.editEvent = function(id) {
+  const e = eventsCache[id];
+  if (!e) return;
+  editingId = id;
+
+  document.getElementById('reminders-list').innerHTML = '';
+  remIdSeq = 0;
+  (e.reminders || []).forEach(r => {
+    const before = minsToValUnit(r.remind_before, true);
+    const interval = minsToValUnit(r.repeat_interval || 15, false);
+    addReminder({
+      beforeVal: before.val, beforeUnit: before.unit,
+      repeatCount: r.repeat_count || 1,
+      repeatVal: interval.val, repeatUnit: interval.unit,
+    });
+  });
+  if (!e.reminders || !e.reminders.length) addReminder();
+
+  document.getElementById('f-title').value = e.title;
+  document.getElementById('f-location').value = e.location || '';
+  document.getElementById('f-datetime').value = utcIsoToLocalInput(e.event_time);
+  document.querySelector('.form-title').textContent = 'Редактировать событие';
+
+  show('view-form');
+  tg.BackButton.show();
+  tg.MainButton.setText('Сохранить').show();
+  tg.MainButton.onClick(submitEvent);
 };
 
 // ── Reminder builder ─────────────────────────────────
@@ -296,12 +342,14 @@ function collectReminders() {
 
 // ── Navigation ───────────────────────────────────────
 document.getElementById('btn-new').onclick = () => {
+  editingId = null;
   document.getElementById('reminders-list').innerHTML = '';
   remIdSeq = 0;
   addReminder({ beforeVal: 30, beforeUnit: 1 });
 
   document.getElementById('f-title').value = '';
   document.getElementById('f-location').value = '';
+  document.querySelector('.form-title').textContent = 'Новое событие';
   const d = new Date();
   d.setDate(d.getDate() + 1);
   d.setHours(12, 0, 0, 0);
@@ -347,10 +395,17 @@ async function submitEvent() {
 
   try {
     tg.MainButton.showProgress(false);
-    await apiFetch('/api/events', {
-      method: 'POST',
-      body: JSON.stringify({ chat_id: chatId, created_by: userId, title, event_time: utcStr, location, reminders }),
-    });
+    if (editingId) {
+      await apiFetch(`/api/events/${editingId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ title, event_time: utcStr, location, reminders }),
+      });
+    } else {
+      await apiFetch('/api/events', {
+        method: 'POST',
+        body: JSON.stringify({ chat_id: chatId, created_by: userId, title, event_time: utcStr, location, reminders }),
+      });
+    }
     tg.MainButton.hideProgress();
     goBack();
     tg.showAlert('✅ Событие сохранено!');
