@@ -19,6 +19,6 @@ jobs:
             git fetch origin
             git checkout dev
             git pull origin dev
-            printf 'BOT_TOKEN=%s\nDB_PASSWORD=tgbot_dev_pg\nDB_NAME=calbot_dev\nTIMEZONE=Europe/Moscow\nBOT_USERNAME=%s\nWEBAPP_URL=https://elmagique.duckdns.org:7443/cal-dev/\n' \
+            printf 'BOT_TOKEN=%s\nDB_HOST=db-dev\nDB_PASSWORD=tgbot_dev_pg\nDB_NAME=calbot_dev\nTIMEZONE=Europe/Moscow\nBOT_USERNAME=%s\nWEBAPP_URL=https://elmagique.duckdns.org:7443/cal-dev/\n' \
               '${{ secrets.STAGING_BOT_TOKEN }}' '${{ secrets.STAGING_BOT_USERNAME }}' > .env.dev
-            docker compose -f docker-compose.dev.yml up -d --build
+            docker compose -f docker-compose.dev.yml --env-file .env.dev up -d --build
