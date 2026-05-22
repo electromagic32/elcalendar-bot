@@ -39,13 +39,18 @@ body {
   background: var(--tg-theme-secondary-bg-color, #f2f2f7);
   position: relative;
 }
-.event-title { font-size: 15px; font-weight: 600; padding-right: 32px; }
+.event-title { font-size: 15px; font-weight: 600; padding-right: 60px; }
 .event-meta { font-size: 13px; color: var(--tg-theme-hint-color, #8e8e93); margin-top: 4px; }
 .del-btn {
   position: absolute; top: 12px; right: 12px;
   background: none; border: none; font-size: 18px; cursor: pointer; opacity: 0.45;
 }
 .del-btn:active { opacity: 1; }
+.repeat-btn {
+  position: absolute; top: 12px; right: 40px;
+  background: none; border: none; font-size: 16px; cursor: pointer; opacity: 0.45;
+}
+.repeat-btn:active { opacity: 1; }
 .fab {
   position: fixed; bottom: 28px; right: 20px;
   width: 56px; height: 56px; border-radius: 50%;
@@ -243,11 +248,14 @@ async function loadEvents() {
         return `⏰ ${base}${rep}`;
       }).join('<br>');
       const canDel = !e.created_by || e.created_by === currentUserId;
+      const repeatBtn = showingPast ? `<button class="repeat-btn" onclick="event.stopPropagation();repeatEvent(${e.id})">🔁</button>` : '';
+      const delBtn = canDel ? `<button class="del-btn" onclick="event.stopPropagation();delEvent(${e.id})">🗑</button>` : '';
+      const hasActions = repeatBtn || delBtn;
       return `
         <div class="event-card">
-          ${canDel ? `<button class="del-btn" onclick="event.stopPropagation();delEvent(${e.id})">🗑</button>` : ''}
-          <div onclick="editEvent(${e.id})" style="cursor:pointer">
-            <div class="event-title" style="${canDel ? '' : 'padding-right:0'}">${escHtml(e.title)}</div>
+          ${repeatBtn}${delBtn}
+          <div onclick="${showingPast ? `repeatEvent(${e.id})` : `editEvent(${e.id})`}" style="cursor:pointer">
+            <div class="event-title" style="${hasActions ? '' : 'padding-right:0'}">${escHtml(e.title)}</div>
             <div class="event-meta">🕐 ${fmtDate(e.event_time)}</div>
             ${e.location ? `<div class="event-meta">📍 ${escHtml(e.location)}</div>` : ''}
             ${e.description ? `<div class="event-meta" style="margin-top:4px">📝 ${escHtml(e.description)}</div>` : ''}
@@ -268,6 +276,40 @@ window.delEvent = function(id) {
     try { await apiFetch(`/api/events/${id}`, { method: 'DELETE' }); loadEvents(); }
     catch { tg.showAlert('Не удалось удалить'); }
   });
+};
+
+window.repeatEvent = function(id) {
+  const e = eventsCache[id];
+  if (!e) return;
+  editingId = null;
+
+  document.getElementById('reminders-list').innerHTML = '';
+  remIdSeq = 0;
+  (e.reminders || []).forEach(r => {
+    const before = minsToValUnit(r.remind_before, true);
+    const interval = minsToValUnit(r.repeat_interval || 15, false);
+    addReminder({
+      beforeVal: before.val, beforeUnit: before.unit,
+      repeatCount: r.repeat_count || 1,
+      repeatVal: interval.val, repeatUnit: interval.unit,
+    });
+  });
+  if (!e.reminders || !e.reminders.length) addReminder();
+
+  document.getElementById('f-title').value = e.title;
+  document.getElementById('f-location').value = e.location || '';
+  document.getElementById('f-description').value = e.description || '';
+
+  const orig = new Date(e.event_time + 'Z');
+  orig.setDate(orig.getDate() + 7);
+  const loc = new Date(orig.getTime() - orig.getTimezoneOffset() * 60000);
+  document.getElementById('f-datetime').value = loc.toISOString().slice(0, 16);
+
+  document.querySelector('.form-title').textContent = 'Новое событие';
+  show('view-form');
+  tg.BackButton.show();
+  tg.MainButton.setText('Сохранить').show();
+  tg.MainButton.onClick(submitEvent);
 };
 
 function minsToValUnit(m, allowDays = true) {
