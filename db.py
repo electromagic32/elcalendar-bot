@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, select
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, delete, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -64,6 +64,32 @@ async def create_event(
         )
         s.add(event)
         await s.flush()
+        for r in reminders:
+            s.add(Reminder(
+                event_id=event.id,
+                remind_before=r["remind_before"],
+                repeat_count=r.get("repeat_count", 1),
+                repeat_interval=r.get("repeat_interval", 0),
+            ))
+        await s.commit()
+        await s.refresh(event)
+        return event
+
+
+async def update_event(
+    event_id: int,
+    title: str,
+    event_time: datetime,
+    location: str | None,
+    reminders: list[dict],
+) -> Event:
+    async with Session() as s:
+        result = await s.execute(select(Event).where(Event.id == event_id))
+        event = result.scalar_one()
+        event.title = title
+        event.event_time = event_time
+        event.location = location
+        await s.execute(delete(Reminder).where(Reminder.event_id == event_id))
         for r in reminders:
             s.add(Reminder(
                 event_id=event.id,
