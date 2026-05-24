@@ -87,6 +87,8 @@ async def list_events(request: Request, chat_id: int, past: bool = False, x_init
             "created_by": event.created_by,
             "created_by_name": event.created_by_name,
             "updated_by_name": event.updated_by_name,
+            "recur_days": event.recur_days,
+            "recur_remaining": event.recur_remaining,
             "reminders": [
                 {
                     "remind_before": r.remind_before,
@@ -115,6 +117,8 @@ class CreateEventRequest(BaseModel):
     location: str | None = None
     description: str | None = None
     reminders: list[ReminderIn]
+    recur_days: str | None = None
+    recur_remaining: int = 0
 
 
 @app.post("/api/events")
@@ -131,6 +135,8 @@ async def api_create_event(request: Request, req: CreateEventRequest, x_init_dat
         location=req.location,
         description=req.description,
         reminders=[r.model_dump() for r in req.reminders],
+        recur_days=req.recur_days,
+        recur_remaining=req.recur_remaining,
     )
     return {"id": event.id, "title": event.title}
 
@@ -141,6 +147,8 @@ class UpdateEventRequest(BaseModel):
     location: str | None = None
     description: str | None = None
     reminders: list[ReminderIn]
+    recur_days: str | None = None
+    recur_remaining: int = 0
 
 
 @app.put("/api/events/{event_id}")
@@ -160,6 +168,8 @@ async def api_update_event(request: Request, event_id: int, req: UpdateEventRequ
         description=req.description,
         updated_by_name=updated_by_name or None,
         reminders=[r.model_dump() for r in req.reminders],
+        recur_days=req.recur_days,
+        recur_remaining=req.recur_remaining,
     )
     return {"id": event.id, "title": event.title}
 

@@ -26,6 +26,8 @@ class Event(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     updated_by_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    recur_days: Mapped[str | None] = mapped_column(String(20), nullable=True)   # e.g. "0,2,4" = Mon/Wed/Fri
+    recur_remaining: Mapped[int] = mapped_column(Integer, default=0)
     remind_before: Mapped[int] = mapped_column(Integer, default=0)   # legacy
     reminded: Mapped[bool] = mapped_column(Boolean, default=False)    # legacy
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -48,6 +50,8 @@ async def init_db():
         await conn.execute(text("ALTER TABLE events ADD COLUMN IF NOT EXISTS description TEXT"))
         await conn.execute(text("ALTER TABLE events ADD COLUMN IF NOT EXISTS created_by_name VARCHAR(128)"))
         await conn.execute(text("ALTER TABLE events ADD COLUMN IF NOT EXISTS updated_by_name VARCHAR(128)"))
+        await conn.execute(text("ALTER TABLE events ADD COLUMN IF NOT EXISTS recur_days VARCHAR(20)"))
+        await conn.execute(text("ALTER TABLE events ADD COLUMN IF NOT EXISTS recur_remaining INTEGER NOT NULL DEFAULT 0"))
 
 
 async def create_event(
@@ -59,6 +63,8 @@ async def create_event(
     location: str | None,
     description: str | None,
     reminders: list[dict],
+    recur_days: str | None = None,
+    recur_remaining: int = 0,
 ) -> Event:
     async with Session() as s:
         event = Event(
@@ -69,6 +75,8 @@ async def create_event(
             event_time=event_time,
             location=location,
             description=description,
+            recur_days=recur_days,
+            recur_remaining=recur_remaining,
             remind_before=0,
             reminded=False,
         )
@@ -94,6 +102,8 @@ async def update_event(
     description: str | None,
     updated_by_name: str | None,
     reminders: list[dict],
+    recur_days: str | None = None,
+    recur_remaining: int = 0,
 ) -> Event:
     async with Session() as s:
         result = await s.execute(select(Event).where(Event.id == event_id))
@@ -103,6 +113,8 @@ async def update_event(
         event.location = location
         event.description = description
         event.updated_by_name = updated_by_name
+        event.recur_days = recur_days
+        event.recur_remaining = recur_remaining
         await s.execute(delete(Reminder).where(Reminder.event_id == event_id))
         for r in reminders:
             s.add(Reminder(
@@ -163,6 +175,36 @@ async def get_due_reminders() -> list[tuple[Reminder, Event]]:
             if next_send <= now:
                 due.append((reminder, event))
         return due
+
+
+async def advance_recurring_events():
+    async with Session() as s:
+        now = datetime.utcnow()
+        result = await s.execute(
+            select(Event).where(
+                Event.recur_remaining > 0,
+                Event.recur_days.isnot(None),
+                Event.event_time < now,
+            )
+        )
+        for event in result.scalars().all():
+            days = [int(d) for d in event.recur_days.split(",") if d.strip()]
+            if not days:
+                continue
+            t = event.event_time.time()
+            candidate = event.event_time.date() + timedelta(days=1)
+            for _ in range(14):  # look up to 2 weeks ahead
+                if candidate.weekday() in days:
+                    break
+                candidate += timedelta(days=1)
+            else:
+                continue
+            event.event_time = datetime.combine(candidate, t)
+            event.recur_remaining -= 1
+            rems = await s.execute(select(Reminder).where(Reminder.event_id == event.id))
+            for r in rems.scalars().all():
+                r.send_count = 0
+        await s.commit()
 
 
 async def cleanup_old_events(ttl_minutes: int):
